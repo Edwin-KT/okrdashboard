@@ -1,0 +1,166 @@
+<template>
+    <lightning-card title="OKR Dashboard">
+        
+        <div slot="actions">
+            <lightning-button label="New Objective" onclick={createObjective}></lightning-button>
+            <lightning-button label="Refresh Data" variant="brand" onclick={handleRefresh} class="slds-m-left_x-small"></lightning-button>
+        </div>
+
+        <div class="slds-p-around_medium">
+            
+            <div class="slds-grid slds-gutters slds-m-bottom_medium slds-box slds-theme_shade">
+                <div class="slds-col slds-size_1-of-4">
+                    <lightning-input type="number" label="Year" value={selectedYear} 
+                        onchange={handleYearChange} placeholder="e.g. 2025"></lightning-input>
+                </div>
+                <div class="slds-col slds-size_1-of-4">
+                    <lightning-combobox label="User" value={selectedUser} placeholder="Select User"
+                        options={userOptions} onchange={handleUserChange}></lightning-combobox>
+                </div>
+            </div>
+
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading"></lightning-spinner>
+            </template>
+
+            <template if:true={objectives}>
+                <lightning-accordion allow-multiple-sections-open active-section-name={activeSections}>
+                    <template for:each={objectives} for:item="obj">
+                        <lightning-accordion-section key={obj.id} name={obj.name} label={obj.name}>
+                            
+                            <div class="slds-grid slds-grid_align-spread">
+                                <p><strong>Year:</strong> {obj.year} | <strong>Owner:</strong> {obj.ownerName}</p>
+                                <lightning-button label="Add Key Result" size="small" variant="neutral"
+                                                  data-id={obj.id} onclick={createKeyResult}>
+                                </lightning-button>
+                            </div>
+
+                            <template if:true={obj.keyResults}>
+                                <div class="slds-m-top_medium slds-p-left_medium slds-border_left">
+                                    <template for:each={obj.keyResults} for:item="kr">
+                                        
+                                        <div key={kr.id} class="slds-m-bottom_medium slds-p-bottom_medium slds-border_bottom">
+                                            
+                                            <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                                                <div class="slds-text-heading_small"><strong>{kr.name}</strong></div>
+                                                
+                                                <lightning-button-group>
+                                                    <lightning-button-icon icon-name="utility:add" size="x-small" 
+                                                                         tooltip="Add Target"
+                                                                         data-id={kr.id} onclick={createTarget}>
+                                                    </lightning-button-icon>
+                                                    
+                                                    <lightning-button-menu alternative-text="Log Activity" icon-name="utility:record_create" menu-alignment="right">
+                                                        <lightning-menu-item label="Log Call" value="Task" data-krid={kr.id} onclick={handleOpenCreateModal}></lightning-menu-item>
+                                                        <lightning-menu-item label="Log Opportunity" value="Opportunity" data-krid={kr.id} onclick={handleOpenCreateModal}></lightning-menu-item>
+                                                        <lightning-menu-item label="Log Google Review" value="Google_Review__c" data-krid={kr.id} onclick={handleOpenCreateModal}></lightning-menu-item>
+                                                        <lightning-menu-item label="Log Survey" value="Survey__c" data-krid={kr.id} onclick={handleOpenCreateModal}></lightning-menu-item>
+                                                        <lightning-menu-item label="Log Case Study" value="Case_Study__c" data-krid={kr.id} onclick={handleOpenCreateModal}></lightning-menu-item>
+                                                        <lightning-menu-item label="Log Review" value="Review__c" data-krid={kr.id} onclick={handleOpenCreateModal}></lightning-menu-item>
+                                                    </lightning-button-menu>
+                                                </lightning-button-group>
+                                            </div>
+
+                                            <template if:true={kr.targets}>
+                                                <template for:each={kr.targets} for:item="target">
+                                                    <div key={target.id} class="slds-m-top_x-small">
+                                                        <div class="slds-grid slds-grid_align-spread">
+                                                            <span class="slds-text-body_small">{target.type}</span>
+                                                            <span class="slds-text-body_small">{target.currentValue} / {target.targetValue}</span>
+                                                        </div>
+                                                        <lightning-progress-bar value={target.progressPercent} variant="circular"></lightning-progress-bar>
+                                                    </div>
+                                                </template>
+                                            </template>
+                                            
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                        </lightning-accordion-section>
+                    </template>
+                </lightning-accordion>
+            </template>
+
+            <template if:false={objectives}>
+                <div class="slds-p-around_medium slds-text-align_center">
+                    <p>No Objectives found for the selected filters.</p>
+                </div>
+            </template>
+        </div>
+
+        <template if:true={isModalOpen}>
+            <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <button class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse" title="Close" onclick={closeModal}>
+                            <lightning-icon icon-name="utility:close" alternative-text="close" variant="inverse" size="small"></lightning-icon>
+                        </button>
+                        <h2 class="slds-text-heading_medium slds-hyphenate">Create {selectedObjectApiName}</h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        
+                        <lightning-record-edit-form
+                        object-api-name={selectedObjectApiName}
+                        onsuccess={handleSuccess}
+                        onerror={handleError}>
+                        
+                        <lightning-messages></lightning-messages>
+                        
+                        <template if:true={isObjective}>
+                            <lightning-input-field field-name="Name"></lightning-input-field>
+                            <lightning-input-field field-name="Year__c"></lightning-input-field>
+                            <lightning-input-field field-name="OwnerId"></lightning-input-field>
+                        </template>
+
+                        <template if:true={isKeyResult}>
+                            <lightning-input-field field-name="Name"></lightning-input-field>
+                            <lightning-input-field field-name="Objective__c" value={selectedObjectiveId} class="slds-hide"></lightning-input-field>
+                        </template>
+
+                        <template if:true={isTarget}>
+                            <lightning-input-field field-name="Type__c"></lightning-input-field>
+                            <lightning-input-field field-name="Target_Value__c"></lightning-input-field>
+                            <lightning-input-field field-name="Key_Result__c" value={selectedKeyResultId} class="slds-hide"></lightning-input-field>
+                        </template>
+
+                        <template if:true={isTask}>
+                            <lightning-input-field field-name="Subject"></lightning-input-field>
+                            <lightning-input-field field-name="Key_Result__c" value={selectedKeyResultId} class="slds-hide"></lightning-input-field>
+                        </template>
+
+                        <template if:true={isOpportunity}>
+                            <lightning-input-field field-name="Name"></lightning-input-field>
+                            <lightning-input-field field-name="StageName"></lightning-input-field>
+                            <lightning-input-field field-name="CloseDate"></lightning-input-field>
+                            <lightning-input-field field-name="Key_Result__c" value={selectedKeyResultId} class="slds-hide"></lightning-input-field>
+                        </template>
+
+                        <template if:false={isObjective}>
+                            <template if:false={isKeyResult}>
+                                <template if:false={isTarget}>
+                                    <template if:false={isTask}>
+                                        <template if:false={isOpportunity}>
+                                            <lightning-input-field field-name="Name"></lightning-input-field>
+                                            <lightning-input-field field-name="Key_Result__c" value={selectedKeyResultId} class="slds-hide"></lightning-input-field>
+                                        </template>
+                                    </template>
+                                </template>
+                            </template>
+                        </template>
+
+                        <div class="slds-m-top_medium slds-text-align_right">
+                            <lightning-button variant="neutral" label="Cancel" onclick={closeModal} class="slds-m-right_small"></lightning-button>
+                            <lightning-button variant="brand" type="submit" label="Save"></lightning-button>
+                        </div>
+
+                    </lightning-record-edit-form>
+
+                    </div>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open"></div>
+        </template>
+    </lightning-card>
+</template>
